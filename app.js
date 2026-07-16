@@ -1506,15 +1506,10 @@ function setupJotform() {
   JFCustomWidget.subscribe("ready", async function(data) {
     console.log("[ready] fired, sid:", data?.sid, "value length:", data?.value?.length || 0);
 
-    // Clear the widget value immediately and after a delay to override JotForm's auto-restore
-    const clearValue = () => {
-      if (typeof JFCustomWidget !== "undefined") {
-        try { JFCustomWidget.sendData({ value: "" }); } catch(e) {}
-      }
-    };
-    clearValue();
-    setTimeout(clearValue, 500);
-    setTimeout(clearValue, 1500);
+    // Clear widget value on load — Order Summary stays blank until Amount Paid is filled
+    if (typeof JFCustomWidget !== "undefined") {
+      try { JFCustomWidget.sendData({ value: "" }); } catch(e) {}
+    }
 
     // Extract submission ID
     let sid = data?.sid || data?.submissionID || data?.submissionId || null;
@@ -1561,9 +1556,10 @@ function setupJotform() {
 
       if (pkgText || rentalText || retailText) {
         const parts = [];
-        if (pkgText.trim())    parts.push({ type: "package", text: pkgText.trim() });
-        if (rentalText.trim()) parts.push({ type: "rental",  text: rentalText.trim() });
-        if (retailText.trim() && retailText.trim() !== "No items selected") parts.push({ type: "retail", text: retailText.trim() });
+        const isBlank = (t) => !t.trim() || t.trim() === "No items selected";
+        if (!isBlank(pkgText))    parts.push({ type: "package", text: pkgText.trim() });
+        if (!isBlank(rentalText)) parts.push({ type: "rental",  text: rentalText.trim() });
+        if (!isBlank(retailText)) parts.push({ type: "retail",  text: retailText.trim() });
         if (parts.length) {
           console.log("[restore] using legacy restore with", parts.length, "parts");
           window._savedLegacyRestore = parts;
