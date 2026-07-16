@@ -138,25 +138,51 @@ function parseCSV(text) {
 /* ══════════════════════════════════════════════
    DATA LOADING
 ══════════════════════════════════════════════ */
-async function fetchSheetCSV(sheetName) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Sheet "${sheetName}" failed: ${res.status}`);
-  return parseCSV(await res.text());
+async function fetchSheetCSV(sheetName, retries = 3) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&nocache=${Date.now()}`;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1))); // exponential backoff
+        continue;
+      }
+      if (!res.ok) throw new Error(`Sheet "${sheetName}" failed: ${res.status}`);
+      return parseCSV(await res.text());
+    } catch(e) {
+      if (attempt === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw new Error(`Sheet "${sheetName}" failed after ${retries} retries`);
 }
 
-async function fetchSheetByGid(gid) {
-  const res = await fetch(CSV_BASE + gid);
-  if (!res.ok) throw new Error(`GID ${gid} failed`);
-  return parseCSV(await res.text());
+async function fetchSheetByGid(gid, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(CSV_BASE + gid + `&nocache=${Date.now()}`, { cache: "no-store" });
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) throw new Error(`GID ${gid} failed`);
+      return parseCSV(await res.text());
+    } catch(e) {
+      if (attempt === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw new Error(`GID ${gid} failed after ${retries} retries`);
 }
 
 async function loadAllData() {
-  // Load package + rental sheets (same sheets, same data, different columns used)
-  await Promise.allSettled(PKG_SHEETS.map(async name => {
+  const DELAY_MS = 600;
+
+  // ── Load all PKG/RENTAL sheets sequentially ──
+  for (const name of PKG_SHEETS) {
     try {
       const rows = await fetchSheetCSV(name);
-      if (!rows.length) return;
+      if (!rows.length) { await new Promise(r => setTimeout(r, DELAY_MS)); continue; }
       const headers = rows[0].map(h => h.toUpperCase().trim());
       let rentalCol = -1, retailCol = -1, fuCol = -1;
       headers.forEach((h, i) => {
@@ -182,15 +208,13 @@ async function loadAllData() {
       }
       sheetData[name] = items;
 
-      // Build rental master list from rental sheets
       const isQty = RENTAL_QTY_CATS.includes(name);
       const isTrk = RENTAL_TRACKED_CATS.includes(name);
       if (isQty || isTrk) {
         for (const item of items) {
           const effectiveRental = (isQty && item.rentalRate == null) ? 0 : item.rentalRate;
           rentalMaster.push({
-            category: name,
-            name: item.code,
+            category: name, name: item.code,
             rentalRate: effectiveRental,
             firstUserPrice: item.firstUserPrice,
             type: isQty ? "QUANTITY" : "TRACKED"
@@ -201,16 +225,17 @@ async function loadAllData() {
       sheetData[name] = [];
       console.warn("Sheet failed:", name, e.message);
     }
-  }));
+    await new Promise(r => setTimeout(r, DELAY_MS));
+  }
 
-  // Load retail sheets (by gid for retail price column)
-  await Promise.allSettled(RETAIL_SHEETS.map(async ({ label, gid }) => {
+  // ── Load RETAIL sheets sequentially ──
+  for (const { label, gid } of RETAIL_SHEETS) {
     try {
       const rows = await fetchSheetByGid(gid);
-      if (rows.length < 2) return;
+      if (rows.length < 2) { await new Promise(r => setTimeout(r, DELAY_MS)); continue; }
       const headers = rows[0].map(h => h.trim().toLowerCase());
       const priceCol = headers.findIndex(h => h.includes("retail"));
-      if (priceCol === -1) return;
+      if (priceCol === -1) { await new Promise(r => setTimeout(r, DELAY_MS)); continue; }
       for (let r = 1; r < rows.length; r++) {
         const row  = rows[r];
         const name = (row[0] || "").trim();
@@ -220,7 +245,8 @@ async function loadAllData() {
         retailItems.push({ category: label, name, retailPrice: price });
       }
     } catch(e) { console.warn("Retail sheet failed:", label, e.message); }
-  }));
+    await new Promise(r => setTimeout(r, DELAY_MS));
+  }
 
   // Populate package color dropdown
   const colors = sheetData["PACKAGE COLORS"] || [];
@@ -241,10 +267,13 @@ async function loadAllData() {
   buildRentalQtyPanel();
   buildRetailPanel();
 
-  // Restore if we captured data from ready event
+  // Restore if we captured data from ready event (only on first load)
   if (window._savedRestoreText) {
     await restoreFromSummary(window._savedRestoreText);
     window._savedRestoreText = null;
+  } else if (window._savedLegacyRestore) {
+    await restoreFromLegacy(window._savedLegacyRestore);
+    window._savedLegacyRestore = null;
   }
 
   updateGrandTotal();
@@ -1015,10 +1044,21 @@ function updateGrandTotal() {
   document.getElementById("grandTotalAll").textContent = money(grandTotal);
   document.getElementById("payGrandTotal").textContent = money(grandTotal);
 
-  /* ── Payment summary ── */
-  const amountPaid = parseFloat(document.getElementById("amountPaid").value) || 0;
-  const discount   = parseFloat(document.getElementById("discountAmount").value) || 0;
-  const remaining  = grandTotal - amountPaid - discount;
+  // If Amount Paid is empty, clear summary so JotForm condition can block Next
+  const amountPaidEl = document.getElementById("amountPaid");
+  const amountPaid   = parseFloat(amountPaidEl.value) || 0;
+  const discount     = parseFloat(document.getElementById("discountAmount").value) || 0;
+
+  if (!amountPaidEl.value.trim()) {
+    amountPaidEl.style.borderColor = "#e06060";
+    window.latestSubmissionText = "";
+    broadcastToJotform();
+    return;
+  } else {
+    amountPaidEl.style.borderColor = "";
+  }
+
+  const remaining = grandTotal - amountPaid - discount;
   document.getElementById("remainingBalance").textContent = money(Math.max(0, remaining));
 
   /* ── Build summary ── */
@@ -1099,7 +1139,9 @@ function updateGrandTotal() {
    JOTFORM INTEGRATION
 ══════════════════════════════════════════════ */
 function broadcastToJotform() {
-  const value = window.latestSubmissionText || "";
+  // Only send the summary value when Amount Paid is filled
+  const amountPaidFilled = document.getElementById("amountPaid")?.value?.trim();
+  const value = amountPaidFilled ? (window.latestSubmissionText || "") : "";
   if (typeof JFCustomWidget !== "undefined") {
     try { JFCustomWidget.sendData({ value }); } catch(e) {}
   }
@@ -1121,7 +1163,173 @@ function loadFromLocalStorage(sid) {
 }
 
 /* ══════════════════════════════════════════════
-   RESTORE FROM SUMMARY
+   RESTORE FROM LEGACY SEPARATE SUMMARIES
+══════════════════════════════════════════════ */
+async function restoreFromLegacy(parts) {
+  for (const part of parts) {
+    if (part.type === "package") await restorePackageLegacy(part.text);
+    if (part.type === "rental")  restoreRentalLegacy(part.text);
+    if (part.type === "retail")  restoreRetailLegacy(part.text);
+  }
+  renderRentalItems();
+  renderRetailItems();
+  updateGrandTotal();
+}
+
+async function restorePackageLegacy(text) {
+  if (!text || !text.trim()) return;
+  if (!dataReady) {
+    await new Promise(resolve => {
+      const check = setInterval(() => { if (dataReady) { clearInterval(check); resolve(); } }, 100);
+    });
+  }
+
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+  // Package type
+  const pkgLine = lines.find(l => l.startsWith("PACKAGE:"));
+  if (pkgLine) {
+    const pkgName = pkgLine.replace("PACKAGE:", "").trim();
+    const pkgSel  = document.getElementById("packageType");
+    for (const [val, name] of Object.entries(packageNames)) {
+      if (name === pkgName) { pkgSel.value = val; break; }
+    }
+    renderPackage();
+  }
+
+  // Package color
+  const colorLine = lines.find(l => l.startsWith("PACKAGE COLOR:"));
+  if (colorLine) document.getElementById("packageColor").value = colorLine.replace("PACKAGE COLOR:", "").trim();
+
+  // Build name to key map
+  const pkg = document.getElementById("packageType").value;
+  const nameToKey = {};
+  for (const [k, [name]] of Object.entries(packagePrices[pkg])) nameToKey[name] = k;
+
+  // Package item lines
+  const addonStartIdx = lines.findIndex(l => l === "ADD-ONS:");
+  const pkgItemLines = lines.filter((l, i) => {
+    if (l.startsWith("PACKAGE:") || l.startsWith("PACKAGE COLOR:") ||
+        l.startsWith("PACKAGE SUBTOTAL:") || l.startsWith("ADD-ON SUBTOTAL:") ||
+        l.startsWith("GRAND TOTAL:") || l === "ADD-ONS:") return false;
+    if (addonStartIdx >= 0 && i > addonStartIdx) return false;
+    return l.includes(" x ") && l.includes("@");
+  });
+
+  for (const line of pkgItemLines) {
+    const qtyMatch = line.match(/ x (\d+) @/);
+    if (!qtyMatch) continue;
+    const qty      = parseInt(qtyMatch[1]);
+    const itemName = line.split(/\s*\|\s*|\s+x\s+\d+\s+@/)[0].trim();
+    const k        = nameToKey[itemName];
+    if (!k) continue;
+
+    const qtyInput = document.querySelector(`.package-qty[data-k="${k}"]`);
+    if (qtyInput) { qtyInput.value = qty; qtyInput.dispatchEvent(new Event("input")); }
+
+    if (k === "bridal_gown" || k === "mother") {
+      const containerId  = k === "bridal_gown" ? "bgPickers" : "mgPickers";
+      const allowedCats  = k === "bridal_gown" ? BG_CATS : MG_CATS;
+      const labelPrefix  = k === "bridal_gown" ? "Bridal Gown" : "Mother's Gown";
+      const codeMatches  = [...line.matchAll(/#\d+:\s*([^/,]+)\/([^,\s]+)/g)];
+      if (codeMatches.length > 0) {
+        buildGownPickers(containerId, codeMatches.length, allowedCats, labelPrefix);
+        await new Promise(r => setTimeout(r, 50));
+        const sets = document.querySelectorAll(`#${containerId} .gown-picker-set`);
+        codeMatches.forEach((m, i) => {
+          const cat = m[1].trim(); const code = m[2].trim();
+          const set = sets[i]; if (!set) return;
+          const catSel  = set.querySelector(".gown-cat-sel");
+          const itemInp = set.querySelector(".gown-item-sel");
+          if (catSel) catSel.value = cat;
+          if (itemInp) itemInp.value = code;
+        });
+      }
+    }
+  }
+
+  // Add-on lines
+  if (addonStartIdx >= 0) {
+    const addonLines = lines.filter((l, i) => {
+      if (i <= addonStartIdx) return false;
+      if (l.startsWith("PACKAGE SUBTOTAL:") || l.startsWith("ADD-ON SUBTOTAL:") || l.startsWith("GRAND TOTAL:")) return false;
+      return l.includes(" x ") && l.includes("Regular:");
+    });
+    for (const line of addonLines) {
+      const m = line.match(/^([^/]+)\/([^\s]+)\s+x\s+(\d+)\s+\|\s*Regular:\s*₱([\d,]+\.?\d*)/);
+      if (!m) continue;
+      const cat = m[1].trim(); const code = m[2].trim();
+      const qty = parseInt(m[3]);
+      addAddonRow();
+      const addonRows = document.querySelectorAll(".addon-row");
+      const row = addonRows[addonRows.length - 1];
+      const catSel = row.querySelector(".addon-cat");
+      if (catSel) { catSel.value = cat; catSel.dispatchEvent(new Event("change")); }
+      await new Promise(r => setTimeout(r, 0));
+      const inp = row.querySelector(".addon-item-input");
+      if (inp) inp.value = code;
+      const found = (sheetData[cat] || []).find(i => i.code === code);
+      if (found) { row._foundItem = found; if (row._updatePriceType) row._updatePriceType(); }
+      if (row._qtyInput) row._qtyInput.value = qty;
+    }
+  }
+}
+
+function restoreRentalLegacy(text) {
+  // Old rental format:
+  // NAME | Rental Rate @ ₱3,500.00 = ₱3,500.00  (tracked)
+  // NAME x 2 @ ₱350.00 = ₱700.00               (quantity)
+  // NAME | First User @ ₱200.00 = ₱200.00       (first user)
+  const lines = text.replace(/\r\n/g, "\n").split("\n").map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (line.startsWith("RENTAL TOTAL:")) continue;
+
+    // Tracked: "NAME | Rental Rate @ ₱X = ₱Y" or "NAME | First User @ ₱X = ₱Y"
+    const trackedMatch = line.match(/^(.+?)\s*\|\s*(Rental Rate|First User)\s*@\s*₱([\d,]+\.?\d*)/);
+    if (trackedMatch) {
+      const name  = trackedMatch[1].trim();
+      const label = trackedMatch[2].trim();
+      const rate  = parseFloat(trackedMatch[3].replace(/,/g, ""));
+      const master = rentalMaster.find(i => i.type === "TRACKED" && i.name === name);
+      if (master && !rentalCart.find(i => i.name === name && i.type === "TRACKED")) {
+        rentalCart.push({ id: uid(), category: master.category, name, rentalRate: rate, pricingLabel: label, quantity: 1, amount: rate, type: "TRACKED" });
+      }
+      continue;
+    }
+
+    // Quantity: "NAME x QTY @ ₱X = ₱Y"
+    const qtyMatch = line.match(/^(.+?)\s+x\s+(\d+)\s+@\s+₱([\d,]+\.?\d*)/);
+    if (qtyMatch) {
+      const name = qtyMatch[1].trim();
+      const qty  = parseInt(qtyMatch[2]);
+      const rate = parseFloat(qtyMatch[3].replace(/,/g, ""));
+      const master = rentalMaster.find(i => i.type === "QUANTITY" && i.name === name);
+      if (master) {
+        const existing = rentalCart.find(i => i.type === "QUANTITY" && i.name === name);
+        if (existing) { existing.quantity += qty; existing.amount = existing.rentalRate * existing.quantity; }
+        else rentalCart.push({ id: uid(), category: master.category, name, rentalRate: rate, pricingLabel: "Rental Rate", quantity: qty, amount: rate * qty, type: "QUANTITY" });
+      }
+    }
+  }
+}
+
+function restoreRetailLegacy(text) {
+  // Old retail format: "Product Name: ABHAYA, Amount: 12000"
+  const lines = text.replace(/\r\n/g, "\n").split("\n").map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^Product Name:\s*(.+?),\s*Amount:\s*([\d.]+)$/);
+    if (!match) continue;
+    const name   = match[1].trim();
+    const amount = parseFloat(match[2]);
+    const master = retailItems.find(i => i.name === name);
+    if (master && !retailCart.find(c => c.name === name)) {
+      retailCart.push({ ...master, retailPrice: amount });
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════
+   RESTORE FROM COMBINED SUMMARY
 ══════════════════════════════════════════════ */
 async function restoreFromSummary(text) {
   if (!text || !text.trim()) return;
@@ -1282,11 +1490,32 @@ function setupJotform() {
   if (typeof JFCustomWidget === "undefined") return;
 
   JFCustomWidget.subscribe("submit", () => {
+    const amountPaid = parseFloat(document.getElementById("amountPaid").value) || 0;
+    if (!document.getElementById("amountPaid").value.trim()) {
+      // Highlight the field and block submission
+      document.getElementById("amountPaid").style.borderColor = "#e06060";
+      document.getElementById("amountPaid").scrollIntoView({ behavior: "smooth", block: "center" });
+      JFCustomWidget.sendSubmit({ valid: false, value: window.latestSubmissionText || "" });
+      return;
+    }
+    document.getElementById("amountPaid").style.borderColor = "";
     updateGrandTotal();
     JFCustomWidget.sendSubmit({ valid: true, value: window.latestSubmissionText || "" });
   });
 
   JFCustomWidget.subscribe("ready", async function(data) {
+    console.log("[ready] fired, sid:", data?.sid, "value length:", data?.value?.length || 0);
+
+    // Clear the widget value immediately and after a delay to override JotForm's auto-restore
+    const clearValue = () => {
+      if (typeof JFCustomWidget !== "undefined") {
+        try { JFCustomWidget.sendData({ value: "" }); } catch(e) {}
+      }
+    };
+    clearValue();
+    setTimeout(clearValue, 500);
+    setTimeout(clearValue, 1500);
+
     // Extract submission ID
     let sid = data?.sid || data?.submissionID || data?.submissionId || null;
     if (sid) sid = String(sid);
@@ -1294,31 +1523,89 @@ function setupJotform() {
       try { const m = JSON.stringify(data).match(/"sid"\s*:\s*"?(\d+)"?/); if (m) sid = m[1]; } catch(e) {}
     }
     if (!sid) { try { const m = window.parent.location.href.match(/\/edit\/(\d+)/); if (m) sid = m[1]; } catch(e) {} }
+    console.log("[ready] extracted sid:", sid);
     if (sid) window._jfSid = sid;
 
     // Try restore from ready event value
     let saved = (data?.value && data.value.trim()) ? data.value.trim() : null;
+    console.log("[ready] value from event:", saved ? saved.substring(0, 80) : "none");
+
+    // If the value from the event is the old package-only format, treat as legacy
+    if (saved && saved.startsWith("PACKAGE:") && !saved.includes("WEDDING ENTOURAGE PACKAGE")) {
+      console.log("[ready] old package format detected, routing to legacy restore");
+      window._savedLegacyRestore = [{ type: "package", text: saved }];
+      return;
+    }
+
+    // If the value is the old rental-only format
+    if (saved && saved.includes("RENTAL TOTAL:") && !saved.includes("GRAND TOTAL:")) {
+      console.log("[ready] old rental format detected, routing to legacy restore");
+      window._savedLegacyRestore = [{ type: "rental", text: saved }];
+      return;
+    }
+
+    // If the value is the old retail-only format
+    if (saved && saved.includes("Product Name:") && !saved.includes("GRAND TOTAL:")) {
+      console.log("[ready] old retail format detected, routing to legacy restore");
+      window._savedLegacyRestore = [{ type: "retail", text: saved }];
+      return;
+    }
 
     // Try localStorage
-    if (!saved && sid) saved = loadFromLocalStorage(sid);
+    if (!saved && sid) {
+      saved = loadFromLocalStorage(sid);
+      console.log("[ready] from localStorage:", saved ? saved.substring(0, 80) : "none");
+    }
 
     // Try JotForm API
     if (!saved && sid) {
       try {
         const res  = await fetch(`https://api.jotform.com/submission/${sid}?apiKey=${API_KEY}&nocache=${Date.now()}`);
         const json = await res.json();
-        // Try to find the combined summary field — look for the field with our summary format
         const answers = json?.content?.answers || {};
-        for (const ans of Object.values(answers)) {
-          const val = ans?.answer || "";
-          if (val && (val.includes("WEDDING ENTOURAGE PACKAGE") || val.includes("RENTAL ITEMS") || val.includes("PURCHASED ITEMS") || val.includes("GRAND TOTAL:"))) {
-            saved = val; break;
+        // Safely get string value from any answer field
+        const getStr = (ans) => {
+          if (!ans) return "";
+          if (typeof ans.answer === "string") return ans.answer;
+          if (Array.isArray(ans.answer)) return ans.answer.join("\n");
+          return "";
+        };
+
+        // New combined summary field (field 110 - Package Summary)
+        const newCombined = getStr(answers["160"]);
+        console.log("[restore] field 110 (combined):", newCombined.substring(0, 80));
+
+        if (newCombined && (newCombined.includes("GRAND TOTAL:") || newCombined.includes("RENTAL TOTAL:") || newCombined.includes("PURCHASE TOTAL:") || newCombined.includes("WEDDING ENTOURAGE PACKAGE"))) {
+          console.log("[restore] found combined format in field 110");
+          saved = newCombined;
+        } else {
+          // Legacy fields: 110 = old package, 136 = rental, 134 = retail, 160 = new combined
+          const pkgText    = getStr(answers["110"]) || getStr(answers["160"]);
+          const rentalText = getStr(answers["136"]);
+          const retailText = getStr(answers["134"]);
+          console.log("[restore] field 110 (pkg):", pkgText.substring(0, 80));
+          console.log("[restore] field 136 (rental):", rentalText.substring(0, 80));
+          console.log("[restore] field 134 (retail):", retailText.substring(0, 80));
+          console.log("[restore] pkgText length:", pkgText.length, "rentalText:", rentalText.length, "retailText:", retailText.length);
+
+          if (pkgText || rentalText || retailText) {
+            const parts = [];
+            if (pkgText.trim())    parts.push({ type: "package", text: pkgText.trim() });
+            if (rentalText.trim()) parts.push({ type: "rental",  text: rentalText.trim() });
+            if (retailText.trim()) parts.push({ type: "retail",  text: retailText.trim() });
+            if (parts.length) {
+              console.log("[restore] using legacy restore with", parts.length, "parts");
+              window._legacyRestore = parts;
+              saved = "__legacy__";
+            }
           }
         }
-      } catch(e) {}
+      } catch(e) { console.log("[restore] API fetch failed:", e.message); }
     }
 
-    if (saved) {
+    if (saved === "__legacy__") {
+      window._savedLegacyRestore = window._legacyRestore;
+    } else if (saved) {
       if (dataReady) { await restoreFromSummary(saved); }
       else { window._savedRestoreText = saved; }
     } else {
@@ -1342,8 +1629,38 @@ document.addEventListener("DOMContentLoaded", async () => {
   await waitForJotform();
   setupJotform();
 
-  document.getElementById("amountPaid").addEventListener("input", updateGrandTotal);
+  document.getElementById("amountPaid").addEventListener("input", () => {
+    document.getElementById("amountPaid").style.borderColor = "";
+    updateGrandTotal();
+  });
   document.getElementById("discountAmount").addEventListener("input", updateGrandTotal);
+
+  document.getElementById("refreshBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("refreshBtn");
+    btn.classList.add("spinning");
+    btn.textContent = "↻ Refreshing…";
+
+    // Reset data
+    Object.keys(sheetData).forEach(k => delete sheetData[k]);
+    rentalMaster.length = 0;
+    retailItems.length  = 0;
+
+    // Repopulate color dropdown
+    const colorSel = document.getElementById("packageColor");
+    const currentColor = colorSel.value;
+    while (colorSel.options.length > 1) colorSel.remove(1);
+
+    // Show loading overlay briefly
+    document.getElementById("loadingOverlay").style.display = "flex";
+
+    await loadAllData();
+
+    // Restore color selection if it still exists
+    if (currentColor) colorSel.value = currentColor;
+
+    btn.classList.remove("spinning");
+    btn.textContent = "↻ Refresh";
+  });
 
   await loadAllData();
 });
