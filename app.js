@@ -1526,89 +1526,54 @@ function setupJotform() {
     console.log("[ready] extracted sid:", sid);
     if (sid) window._jfSid = sid;
 
-    // Try restore from ready event value
-    let saved = (data?.value && data.value.trim()) ? data.value.trim() : null;
-    console.log("[ready] value from event:", saved ? saved.substring(0, 80) : "none");
+    if (!sid) { broadcastToJotform(); return; }
 
-    // If the value from the event is the old package-only format, treat as legacy
-    if (saved && saved.startsWith("PACKAGE:") && !saved.includes("WEDDING ENTOURAGE PACKAGE")) {
-      console.log("[ready] old package format detected, routing to legacy restore");
-      window._savedLegacyRestore = [{ type: "package", text: saved }];
-      return;
-    }
+    // Fetch from JotForm API to get all summary fields
+    try {
+      const res  = await fetch(`https://api.jotform.com/submission/${sid}?apiKey=${API_KEY}&nocache=${Date.now()}`);
+      const json = await res.json();
+      const answers = json?.content?.answers || {};
 
-    // If the value is the old rental-only format
-    if (saved && saved.includes("RENTAL TOTAL:") && !saved.includes("GRAND TOTAL:")) {
-      console.log("[ready] old rental format detected, routing to legacy restore");
-      window._savedLegacyRestore = [{ type: "rental", text: saved }];
-      return;
-    }
+      const getStr = (ans) => {
+        if (!ans) return "";
+        if (typeof ans.answer === "string") return ans.answer;
+        if (Array.isArray(ans.answer)) return ans.answer.join("\n");
+        return "";
+      };
 
-    // If the value is the old retail-only format
-    if (saved && saved.includes("Product Name:") && !saved.includes("GRAND TOTAL:")) {
-      console.log("[ready] old retail format detected, routing to legacy restore");
-      window._savedLegacyRestore = [{ type: "retail", text: saved }];
-      return;
-    }
+      // Priority 1: Order Summary (field 160) — new combined format from this widget
+      const orderSummary = getStr(answers["160"]);
+      console.log("[restore] field 160 (Order Summary):", orderSummary.substring(0, 80));
 
-    // Try localStorage
-    if (!saved && sid) {
-      saved = loadFromLocalStorage(sid);
-      console.log("[ready] from localStorage:", saved ? saved.substring(0, 80) : "none");
-    }
+      if (orderSummary && orderSummary.includes("GRAND TOTAL:")) {
+        console.log("[restore] restoring from Order Summary (160)");
+        window._savedRestoreText = orderSummary;
+        return;
+      }
 
-    // Try JotForm API
-    if (!saved && sid) {
-      try {
-        const res  = await fetch(`https://api.jotform.com/submission/${sid}?apiKey=${API_KEY}&nocache=${Date.now()}`);
-        const json = await res.json();
-        const answers = json?.content?.answers || {};
-        // Safely get string value from any answer field
-        const getStr = (ans) => {
-          if (!ans) return "";
-          if (typeof ans.answer === "string") return ans.answer;
-          if (Array.isArray(ans.answer)) return ans.answer.join("\n");
-          return "";
-        };
+      // Priority 2: Read from the three separate legacy summary fields
+      const pkgText    = getStr(answers["110"]); // Package Summary
+      const rentalText = getStr(answers["136"]); // Rental Summary
+      const retailText = getStr(answers["134"]); // Purchase Summary
+      console.log("[restore] field 110 (pkg):", pkgText.substring(0, 80));
+      console.log("[restore] field 136 (rental):", rentalText.substring(0, 80));
+      console.log("[restore] field 134 (retail):", retailText.substring(0, 80));
 
-        // New combined summary field (field 110 - Package Summary)
-        const newCombined = getStr(answers["160"]);
-        console.log("[restore] field 110 (combined):", newCombined.substring(0, 80));
-
-        if (newCombined && (newCombined.includes("GRAND TOTAL:") || newCombined.includes("RENTAL TOTAL:") || newCombined.includes("PURCHASE TOTAL:") || newCombined.includes("WEDDING ENTOURAGE PACKAGE"))) {
-          console.log("[restore] found combined format in field 110");
-          saved = newCombined;
-        } else {
-          // Legacy fields: 110 = old package, 136 = rental, 134 = retail, 160 = new combined
-          const pkgText    = getStr(answers["110"]) || getStr(answers["160"]);
-          const rentalText = getStr(answers["136"]);
-          const retailText = getStr(answers["134"]);
-          console.log("[restore] field 110 (pkg):", pkgText.substring(0, 80));
-          console.log("[restore] field 136 (rental):", rentalText.substring(0, 80));
-          console.log("[restore] field 134 (retail):", retailText.substring(0, 80));
-          console.log("[restore] pkgText length:", pkgText.length, "rentalText:", rentalText.length, "retailText:", retailText.length);
-
-          if (pkgText || rentalText || retailText) {
-            const parts = [];
-            if (pkgText.trim())    parts.push({ type: "package", text: pkgText.trim() });
-            if (rentalText.trim()) parts.push({ type: "rental",  text: rentalText.trim() });
-            if (retailText.trim()) parts.push({ type: "retail",  text: retailText.trim() });
-            if (parts.length) {
-              console.log("[restore] using legacy restore with", parts.length, "parts");
-              window._legacyRestore = parts;
-              saved = "__legacy__";
-            }
-          }
+      if (pkgText || rentalText || retailText) {
+        const parts = [];
+        if (pkgText.trim())    parts.push({ type: "package", text: pkgText.trim() });
+        if (rentalText.trim()) parts.push({ type: "rental",  text: rentalText.trim() });
+        if (retailText.trim() && retailText.trim() !== "No items selected") parts.push({ type: "retail", text: retailText.trim() });
+        if (parts.length) {
+          console.log("[restore] using legacy restore with", parts.length, "parts");
+          window._savedLegacyRestore = parts;
+          return;
         }
-      } catch(e) { console.log("[restore] API fetch failed:", e.message); }
-    }
+      }
 
-    if (saved === "__legacy__") {
-      window._savedLegacyRestore = window._legacyRestore;
-    } else if (saved) {
-      if (dataReady) { await restoreFromSummary(saved); }
-      else { window._savedRestoreText = saved; }
-    } else {
+      broadcastToJotform();
+    } catch(e) {
+      console.log("[restore] API fetch failed:", e.message);
       broadcastToJotform();
     }
   });
