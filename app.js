@@ -50,38 +50,89 @@ const RETAIL_SHEETS = [
 
 /* ── Package prices ── */
 const packageNames = {
-  "5200": "PACKAGE 1C (SPANDEX)",
-  "6200": "PACKAGE 2C (CHIFFON)",
-  "7000": "PACKAGE 3C (SPANDEX)",
-  "8200": "PACKAGE 4C (CHIFFON)"
+  // Package A (no Mother's Gown or Men's)
+  "A1": "PACKAGE 1A (SPANDEX)",
+  "A2": "PACKAGE 2A (CHIFFON)",
+  // Package B (full - with Mother's Gown and Men's)
+  "B1": "PACKAGE 1B (SPANDEX)",
+  "B2": "PACKAGE 2B (CHIFFON)",
+  "B3": "PACKAGE 3B (SPANDEX)",
+  "B4": "PACKAGE 4B (CHIFFON)",
+  // Package C (original)
+  "C1": "PACKAGE 1C (SPANDEX)",
+  "C2": "PACKAGE 2C (CHIFFON)",
+  "C3": "PACKAGE 3C (SPANDEX)",
+  "C4": "PACKAGE 4C (CHIFFON)"
 };
+
 const packagePrices = {
-  "5200": {
+  // ── Package A ──
+  "A1": {
+    bridal_gown: ["Bridal Gown",   855.60], groom: ["Groom Barong",  249.55],
+    maid:        ["Maid of Honor", 356.50], bridesmaid: ["Bridesmaid", 356.50],
+    flower:      ["Flower Girl",   249.55], child: ["BPO Child",      106.95]
+  },
+  "A2": {
+    bridal_gown: ["Bridal Gown",   837.24], groom: ["Groom Barong",  244.20],
+    maid:        ["Maid of Honor", 488.39], bridesmaid: ["Bridesmaid", 488.39],
+    flower:      ["Flower Girl",   383.74], child: ["BPO Child",      104.66]
+  },
+  // ── Package B ──
+  "B1": {
+    bridal_gown: ["Bridal Gown",   765.96], groom: ["Groom Barong",  223.41],
+    maid:        ["Maid of Honor", 319.15], bridesmaid: ["Bridesmaid", 319.15],
+    flower:      ["Flower Girl",   223.41], child: ["BPO Child",       95.75],
+    mother:      ["Mother's Gown", 143.62], men:   ["Men's Barong",   114.89]
+  },
+  "B2": {
+    bridal_gown: ["Bridal Gown",   740.28], groom: ["Groom Barong",  215.92],
+    maid:        ["Maid of Honor", 431.83], bridesmaid: ["Bridesmaid", 431.83],
+    flower:      ["Flower Girl",   339.30], child: ["BPO Child",       92.54],
+    mother:      ["Mother's Gown", 277.61], men:   ["Men's Barong",   111.04]
+  },
+  "B3": {
+    bridal_gown: ["Bridal Gown",   663.60], groom: ["Groom Suit",    497.70],
+    maid:        ["Maid of Honor", 276.50], bridesmaid: ["Bridesmaid", 276.50],
+    flower:      ["Flower Girl",   193.55], child: ["Child Suit",     276.50],
+    mother:      ["Mother's Gown", 248.85], men:   ["Men's Set",      304.15]
+  },
+  "B4": {
+    bridal_gown: ["Bridal Gown",   705.36], groom: ["Groom Suit",    529.02],
+    maid:        ["Maid of Honor", 411.46], bridesmaid: ["Bridesmaid", 411.46],
+    flower:      ["Flower Girl",   323.29], child: ["Child Suit",     293.90],
+    mother:      ["Mother's Gown", 264.51], men:   ["Men's Set",      323.29]
+  },
+  // ── Package C (original) ──
+  "C1": {
     bridal_gown: ["Bridal Gown",   600.00], groom: ["Groom Barong",  175.00],
     maid:        ["Maid of Honor", 280.50], bridesmaid: ["Bridesmaid", 280.50],
     flower:      ["Flower Girl",   196.35], child: ["BPO Child",       84.15],
     mother:      ["Mother's Gown", 252.45], men:   ["Men's Barong",   100.98]
   },
-  "6200": {
+  "C2": {
     bridal_gown: ["Bridal Gown",   659.04], groom: ["Groom Barong",  192.22],
     maid:        ["Maid of Honor", 384.44], bridesmaid: ["Bridesmaid", 384.44],
     flower:      ["Flower Girl",   302.06], child: ["BPO Child",       82.38],
     mother:      ["Mother's Gown", 247.14], men:   ["Men's Barong",    98.86]
   },
-  "7000": {
+  "C3": {
     bridal_gown: ["Bridal Gown",   615.48], groom: ["Groom Suit",    461.61],
     maid:        ["Maid of Honor", 256.45], bridesmaid: ["Bridesmaid", 256.45],
     flower:      ["Flower Girl",   179.52], child: ["Child Suit",     256.45],
     mother:      ["Mother's Gown", 230.81], men:   ["Men's Set",      282.10]
   },
-  "8200": {
+  "C4": {
     bridal_gown: ["Bridal Gown",   620.88], groom: ["Groom Suit",    465.66],
     maid:        ["Maid of Honor", 362.18], bridesmaid: ["Bridesmaid", 362.18],
     flower:      ["Flower Girl",   284.57], child: ["Child Suit",     258.70],
     mother:      ["Mother's Gown", 232.83], men:   ["Men's Set",      284.57]
   }
 };
-const pkgKeys = Object.keys(packagePrices["5200"]);
+
+// pkgKeys is dynamic per package since A packages don't have mother/men
+function getPkgKeys(pkgId) {
+  return Object.keys(packagePrices[pkgId] || packagePrices["C1"]);
+}
 
 /* ── State ── */
 const sheetData    = {};   // package + rental sheets keyed by name
@@ -358,7 +409,7 @@ function renderPackage() {
   const wrap = document.getElementById("itemRows");
   wrap.innerHTML = "";
 
-  pkgKeys.forEach(k => {
+  getPkgKeys(pkg).forEach(k => {
     const [name, price] = packagePrices[pkg][k];
     const row = document.createElement("div");
     row.className = "pkg-row";
@@ -635,6 +686,22 @@ function addAddonRow() {
 }
 
 document.getElementById("addAddonBtn").addEventListener("click", addAddonRow);
+document.getElementById("packageGroup").addEventListener("change", () => {
+  const group = document.getElementById("packageGroup").value;
+  const typeSel = document.getElementById("packageType");
+  typeSel.innerHTML = "";
+  const options = {
+    "A": [["A1","PACKAGE 1A — ₱4,200 (Spandex)"],["A2","PACKAGE 2A — ₱5,200 (Chiffon)"]],
+    "B": [["B1","PACKAGE 1B — ₱4,200 (Spandex)"],["B2","PACKAGE 2B — ₱5,200 (Chiffon)"],["B3","PACKAGE 3B — ₱6,000 (Spandex)"],["B4","PACKAGE 4B — ₱7,200 (Chiffon)"]],
+    "C": [["C1","PACKAGE 1C — ₱5,200 (Spandex)"],["C2","PACKAGE 2C — ₱6,200 (Chiffon)"],["C3","PACKAGE 3C — ₱7,000 (Spandex)"],["C4","PACKAGE 4C — ₱8,200 (Chiffon)"]]
+  };
+  options[group].forEach(([val, label]) => {
+    const o = document.createElement("option");
+    o.value = val; o.textContent = label;
+    typeSel.appendChild(o);
+  });
+  renderPackage();
+});
 document.getElementById("packageType").addEventListener("change", renderPackage);
 document.getElementById("packageColor").addEventListener("change", updateGrandTotal);
 
@@ -1190,9 +1257,19 @@ async function restorePackageLegacy(text) {
   const pkgLine = lines.find(l => l.startsWith("PACKAGE:"));
   if (pkgLine) {
     const pkgName = pkgLine.replace("PACKAGE:", "").trim();
-    const pkgSel  = document.getElementById("packageType");
     for (const [val, name] of Object.entries(packageNames)) {
-      if (name === pkgName) { pkgSel.value = val; break; }
+      if (name === pkgName) {
+        // Set the group dropdown first
+        const group = val.charAt(0); // "A", "B", or "C"
+        const groupSel = document.getElementById("packageGroup");
+        if (groupSel) {
+          groupSel.value = group;
+          groupSel.dispatchEvent(new Event("change")); // rebuilds packageType options
+        }
+        const pkgSel = document.getElementById("packageType");
+        if (pkgSel) pkgSel.value = val;
+        break;
+      }
     }
     renderPackage();
   }
@@ -1365,7 +1442,7 @@ async function restoreFromSummary(text) {
         const name = pkgItemMatch[1].trim();
         const qty  = parseInt(pkgItemMatch[2]);
         const pkg  = document.getElementById("packageType").value;
-        for (const k of pkgKeys) {
+        for (const k of getPkgKeys(pkg)) {
           if (packagePrices[pkg][k][0] === name) {
             const inp = document.querySelector(`.package-qty[data-k="${k}"]`);
             if (inp) { inp.value = qty; inp.dispatchEvent(new Event("input")); }
