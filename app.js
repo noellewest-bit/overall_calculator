@@ -101,21 +101,24 @@ const ITEM_PRICES = {
   }
 };
 
-// Minimum quantities for each tier
-const TIER_MINS = {
-  B: { bridal_gown: 1, groom: 1, maid: 1, bridesmaid: 3, flower: 3, child: 3, mother: 1, men: 1 },
-  C: { bridal_gown: 1, groom: 1, maid: 1, bridesmaid: 5, flower: 5, child: 3, mother: 2, men: 8 }
-};
+// Overall tier is determined by the full composition, not per-item quantity
+// Pkg B: Mother's Gown >= 2 AND Men's >= 6
+// Pkg C: All of above PLUS Bridesmaid >= 5 AND Flower Girl >= 5 AND BPO/Child >= 3
+function getOverallTier(quantities) {
+  const mother = quantities.mother || 0;
+  const men    = quantities.men    || 0;
+  const bm     = quantities.bridesmaid || 0;
+  const fg     = quantities.flower     || 0;
+  const child  = quantities.child      || 0;
 
-function getTier(itemKey, qty) {
-  if (qty <= 0) return "A";
-  if (qty >= TIER_MINS.C[itemKey]) return "C";
-  if (qty >= TIER_MINS.B[itemKey]) return "B";
+  if (mother >= 2 && men >= 6) {
+    if (bm >= 5 && fg >= 5 && child >= 3) return "C";
+    return "B";
+  }
   return "A";
 }
 
-function getItemPrice(itemKey, qty, fabric, mensType) {
-  const tier = getTier(itemKey, qty);
+function getItemPrice(itemKey, qty, fabric, mensType, tier) {
   return ITEM_PRICES[fabric][mensType][itemKey][tier];
 }
 
@@ -1060,11 +1063,19 @@ function updateGrandTotal() {
   const pkgLines = [], addonLines = [];
   let pkgHasItems = false;
 
+  // First pass — collect all quantities to determine overall tier
+  const quantities = {};
+  document.querySelectorAll(".package-qty").forEach(input => {
+    quantities[input.dataset.k] = Math.max(0, parseInt(input.value) || 0);
+  });
+  const tier = getOverallTier(quantities);
+
+  // Second pass — calculate prices using the overall tier
   document.querySelectorAll(".package-qty").forEach(input => {
     const k    = input.dataset.k;
-    const qty  = Math.max(0, parseInt(input.value) || 0);
+    const qty  = quantities[k];
     const name = getItemLabel(k, mensType);
-    const price = getItemPrice(k, qty, fabric, mensType);
+    const price = getItemPrice(k, qty, fabric, mensType, tier);
     const sub  = qty * price;
     packTotal += sub;
 
@@ -1076,7 +1087,6 @@ function updateGrandTotal() {
 
     if (qty > 0) {
       pkgHasItems = true;
-      const tier = getTier(k, qty);
       const codes = [];
       if (k === "bridal_gown") {
         document.querySelectorAll("#bgPickers .gown-picker-set").forEach(set => {
@@ -1161,6 +1171,7 @@ function updateGrandTotal() {
   // Package section
   if (pkgHasItems || color) {
     lines.push("WEDDING ENTOURAGE PACKAGE");
+    lines.push(`  Package Tier: ${tier === "A" ? "Package A" : tier === "B" ? "Package B" : "Package C"}`);
     lines.push(`  Fabric: ${fabric.charAt(0).toUpperCase() + fabric.slice(1)}`);
     lines.push(`  Men's: ${mensType === "suit" ? "Suit Set" : "Barong"}`);
     if (color) lines.push(`  Color: ${color}`);
@@ -1762,4 +1773,3 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await loadAllData();
 });
-
