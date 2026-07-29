@@ -48,91 +48,103 @@ const RETAIL_SHEETS = [
   { label: "S-UPPER", gid: "1177779497" },
 ];
 
-/* ── Package prices ── */
-const packageNames = {
-  // Package A (no Mother's Gown or Men's)
-  "A1": "PACKAGE 1A (SPANDEX)",
-  "A2": "PACKAGE 2A (CHIFFON)",
-  // Package B (full - with Mother's Gown and Men's)
-  "B1": "PACKAGE 1B (SPANDEX)",
-  "B2": "PACKAGE 2B (CHIFFON)",
-  "B3": "PACKAGE 3B (SPANDEX)",
-  "B4": "PACKAGE 4B (CHIFFON)",
-  // Package C (original)
-  "C1": "PACKAGE 1C (SPANDEX)",
-  "C2": "PACKAGE 2C (CHIFFON)",
-  "C3": "PACKAGE 3C (SPANDEX)",
-  "C4": "PACKAGE 4C (CHIFFON)"
-};
+/* ── Package pricing tiers ── */
+// Fabric: "spandex" or "chiffon"
+// MensType: "barong" or "suit"
+// Each item has prices at tier A, B, C
+// Tier is determined per-item by quantity
 
-const packagePrices = {
-  // ── Package A ──
-  "A1": {
-    bridal_gown: ["Bridal Gown",   855.60], groom: ["Groom Barong",  249.55],
-    maid:        ["Maid of Honor", 356.50], bridesmaid: ["Bridesmaid", 356.50],
-    flower:      ["Flower Girl",   249.55], child: ["BPO Child",      106.95]
+const ITEM_PRICES = {
+  spandex: {
+    barong: {
+      bridal_gown: { A: 855.60,  B: 765.96,  C: 600.00  },
+      groom:       { A: 249.55,  B: 223.41,  C: 175.00  },
+      maid:        { A: 356.50,  B: 319.15,  C: 280.50  },
+      bridesmaid:  { A: 356.50,  B: 319.15,  C: 280.50  },
+      flower:      { A: 249.55,  B: 223.41,  C: 196.35  },
+      child:       { A: 106.95,  B:  95.75,  C:  84.15  },
+      mother:      { A: 143.62,  B: 143.62,  C: 252.45  },
+      men:         { A: 114.89,  B: 114.89,  C: 100.98  }
+    },
+    suit: {
+      bridal_gown: { A: 721.92,  B: 663.60,  C: 615.48  },
+      groom:       { A: 541.35,  B: 497.70,  C: 461.61  },
+      maid:        { A: 300.75,  B: 276.50,  C: 256.45  },
+      bridesmaid:  { A: 300.75,  B: 276.50,  C: 256.45  },
+      flower:      { A: 210.525, B: 193.55,  C: 179.52  },
+      child:       { A: 300.75,  B: 276.50,  C: 256.45  },
+      mother:      { A: 248.85,  B: 248.85,  C: 230.81  },
+      men:         { A: 304.15,  B: 304.15,  C: 282.10  }
+    }
   },
-  "A2": {
-    bridal_gown: ["Bridal Gown",   837.24], groom: ["Groom Barong",  244.20],
-    maid:        ["Maid of Honor", 488.39], bridesmaid: ["Bridesmaid", 488.39],
-    flower:      ["Flower Girl",   383.74], child: ["BPO Child",      104.66]
-  },
-  // ── Package B ──
-  "B1": {
-    bridal_gown: ["Bridal Gown",   765.96], groom: ["Groom Barong",  223.41],
-    maid:        ["Maid of Honor", 319.15], bridesmaid: ["Bridesmaid", 319.15],
-    flower:      ["Flower Girl",   223.41], child: ["BPO Child",       95.75],
-    mother:      ["Mother's Gown", 143.62], men:   ["Men's Barong",   114.89]
-  },
-  "B2": {
-    bridal_gown: ["Bridal Gown",   740.28], groom: ["Groom Barong",  215.92],
-    maid:        ["Maid of Honor", 431.83], bridesmaid: ["Bridesmaid", 431.83],
-    flower:      ["Flower Girl",   339.30], child: ["BPO Child",       92.54],
-    mother:      ["Mother's Gown", 277.61], men:   ["Men's Barong",   111.04]
-  },
-  "B3": {
-    bridal_gown: ["Bridal Gown",   663.60], groom: ["Groom Suit",    497.70],
-    maid:        ["Maid of Honor", 276.50], bridesmaid: ["Bridesmaid", 276.50],
-    flower:      ["Flower Girl",   193.55], child: ["Child Suit",     276.50],
-    mother:      ["Mother's Gown", 248.85], men:   ["Men's Set",      304.15]
-  },
-  "B4": {
-    bridal_gown: ["Bridal Gown",   705.36], groom: ["Groom Suit",    529.02],
-    maid:        ["Maid of Honor", 411.46], bridesmaid: ["Bridesmaid", 411.46],
-    flower:      ["Flower Girl",   323.29], child: ["Child Suit",     293.90],
-    mother:      ["Mother's Gown", 264.51], men:   ["Men's Set",      323.29]
-  },
-  // ── Package C (original) ──
-  "C1": {
-    bridal_gown: ["Bridal Gown",   600.00], groom: ["Groom Barong",  175.00],
-    maid:        ["Maid of Honor", 280.50], bridesmaid: ["Bridesmaid", 280.50],
-    flower:      ["Flower Girl",   196.35], child: ["BPO Child",       84.15],
-    mother:      ["Mother's Gown", 252.45], men:   ["Men's Barong",   100.98]
-  },
-  "C2": {
-    bridal_gown: ["Bridal Gown",   659.04], groom: ["Groom Barong",  192.22],
-    maid:        ["Maid of Honor", 384.44], bridesmaid: ["Bridesmaid", 384.44],
-    flower:      ["Flower Girl",   302.06], child: ["BPO Child",       82.38],
-    mother:      ["Mother's Gown", 247.14], men:   ["Men's Barong",    98.86]
-  },
-  "C3": {
-    bridal_gown: ["Bridal Gown",   615.48], groom: ["Groom Suit",    461.61],
-    maid:        ["Maid of Honor", 256.45], bridesmaid: ["Bridesmaid", 256.45],
-    flower:      ["Flower Girl",   179.52], child: ["Child Suit",     256.45],
-    mother:      ["Mother's Gown", 230.81], men:   ["Men's Set",      282.10]
-  },
-  "C4": {
-    bridal_gown: ["Bridal Gown",   620.88], groom: ["Groom Suit",    465.66],
-    maid:        ["Maid of Honor", 362.18], bridesmaid: ["Bridesmaid", 362.18],
-    flower:      ["Flower Girl",   284.57], child: ["Child Suit",     258.70],
-    mother:      ["Mother's Gown", 232.83], men:   ["Men's Set",      284.57]
+  chiffon: {
+    barong: {
+      bridal_gown: { A: 837.24,  B: 740.28,  C: 659.04  },
+      groom:       { A: 244.20,  B: 215.92,  C: 192.22  },
+      maid:        { A: 488.39,  B: 431.83,  C: 384.44  },
+      bridesmaid:  { A: 488.39,  B: 431.83,  C: 384.44  },
+      flower:      { A: 383.74,  B: 339.30,  C: 302.06  },
+      child:       { A: 104.66,  B:  92.54,  C:  82.38  },
+      mother:      { A: 277.61,  B: 277.61,  C: 247.14  },
+      men:         { A: 111.04,  B: 111.04,  C:  98.86  }
+    },
+    suit: {
+      bridal_gown: { A: 746.40,  B: 705.36,  C: 620.88  },
+      groom:       { A: 558.90,  B: 529.02,  C: 465.66  },
+      maid:        { A: 434.70,  B: 411.46,  C: 362.18  },
+      bridesmaid:  { A: 434.70,  B: 411.46,  C: 362.18  },
+      flower:      { A: 341.55,  B: 323.29,  C: 284.57  },
+      child:       { A: 310.50,  B: 293.90,  C: 258.70  },
+      mother:      { A: 264.51,  B: 264.51,  C: 232.83  },
+      men:         { A: 323.29,  B: 323.29,  C: 284.57  }
+    }
   }
 };
 
-// pkgKeys is dynamic per package since A packages don't have mother/men
-function getPkgKeys(pkgId) {
-  return Object.keys(packagePrices[pkgId] || packagePrices["C1"]);
+// Minimum quantities for each tier
+const TIER_MINS = {
+  B: { bridal_gown: 1, groom: 1, maid: 1, bridesmaid: 3, flower: 3, child: 3, mother: 1, men: 1 },
+  C: { bridal_gown: 1, groom: 1, maid: 1, bridesmaid: 5, flower: 5, child: 3, mother: 2, men: 8 }
+};
+
+function getTier(itemKey, qty) {
+  if (qty <= 0) return "A";
+  if (qty >= TIER_MINS.C[itemKey]) return "C";
+  if (qty >= TIER_MINS.B[itemKey]) return "B";
+  return "A";
 }
+
+function getItemPrice(itemKey, qty, fabric, mensType) {
+  const tier = getTier(itemKey, qty);
+  return ITEM_PRICES[fabric][mensType][itemKey][tier];
+}
+
+// All package items in display order
+const ALL_PKG_ITEMS = [
+  { key: "bridal_gown", label: "Bridal Gown",   hasGownPicker: true  },
+  { key: "groom",       label: "Groom",          hasGownPicker: false },
+  { key: "maid",        label: "Maid of Honor",  hasGownPicker: false },
+  { key: "bridesmaid",  label: "Bridesmaid",     hasGownPicker: false },
+  { key: "flower",      label: "Flower Girl",    hasGownPicker: false },
+  { key: "child",       label: "BPO Child",      hasGownPicker: false },
+  { key: "mother",      label: "Mother's Gown", hasGownPicker: true  },
+  { key: "men",         label: "Men's Barong",  hasGownPicker: false }
+];
+
+// packageNames kept for summary display and restore compatibility
+const packageNames = {
+  "A1": "PACKAGE 1A (SPANDEX)", "A2": "PACKAGE 2A (CHIFFON)",
+  "A3": "PACKAGE 3A (SPANDEX)", "A4": "PACKAGE 4A (CHIFFON)",
+  "B1": "PACKAGE 1B (SPANDEX)", "B2": "PACKAGE 2B (CHIFFON)",
+  "B3": "PACKAGE 3B (SPANDEX)", "B4": "PACKAGE 4B (CHIFFON)",
+  "C1": "PACKAGE 1C (SPANDEX)", "C2": "PACKAGE 2C (CHIFFON)",
+  "C3": "PACKAGE 3C (SPANDEX)", "C4": "PACKAGE 4C (CHIFFON)"
+};
+
+function getPkgKeys(pkgId) {
+  return ALL_PKG_ITEMS.map(i => i.key);
+}
+
 
 /* ── State ── */
 const sheetData    = {};   // package + rental sheets keyed by name
@@ -404,29 +416,44 @@ function createSearchSelect(inputId, dropId, options, onSelect) {
 /* ══════════════════════════════════════════════
    PACKAGE CALCULATOR
 ══════════════════════════════════════════════ */
+function getFabric()    { return document.getElementById("fabricType")?.value  || "spandex"; }
+function getMensType()  { return document.getElementById("mensType")?.value    || "barong";  }
+
+function getItemLabel(key, mensType) {
+  const base = ALL_PKG_ITEMS.find(i => i.key === key);
+  if (!base) return key;
+  if (key === "groom") return mensType === "suit" ? "Groom Suit" : "Groom Barong";
+  if (key === "child") return mensType === "suit" ? "Child Suit" : "BPO Child";
+  if (key === "men")   return mensType === "suit" ? "Men's Set"  : "Men's Barong";
+  return base.label;
+}
+
 function renderPackage() {
-  const pkg  = document.getElementById("packageType").value;
-  const wrap = document.getElementById("itemRows");
+  const fabric   = getFabric();
+  const mensType = getMensType();
+  const wrap     = document.getElementById("itemRows");
   wrap.innerHTML = "";
 
-  getPkgKeys(pkg).forEach(k => {
-    const [name, price] = packagePrices[pkg][k];
+  ALL_PKG_ITEMS.forEach(({ key }) => {
+    const label = getItemLabel(key, mensType);
+    const qty0Price = getItemPrice(key, 0, fabric, mensType);
+
     const row = document.createElement("div");
     row.className = "pkg-row";
-    row.dataset.k = k;
+    row.dataset.k = key;
 
     const labelCol = document.createElement("div");
     const itemLabel = document.createElement("div");
     itemLabel.className = "item-label";
-    itemLabel.textContent = name;
+    itemLabel.textContent = label;
     labelCol.appendChild(itemLabel);
 
-    if (k === "bridal_gown") {
+    if (key === "bridal_gown") {
       const pc = document.createElement("div");
       pc.id = "bgPickers"; pc.className = "gown-pickers";
       labelCol.appendChild(pc);
     }
-    if (k === "mother") {
+    if (key === "mother") {
       const pc = document.createElement("div");
       pc.id = "mgPickers"; pc.className = "gown-pickers";
       labelCol.appendChild(pc);
@@ -435,17 +462,18 @@ function renderPackage() {
     const qtyCol = document.createElement("div");
     const qtyInput = document.createElement("input");
     qtyInput.type = "number"; qtyInput.min = "0"; qtyInput.step = "1";
-    qtyInput.value = "0"; qtyInput.dataset.k = k;
+    qtyInput.value = "0"; qtyInput.dataset.k = key;
     qtyInput.className = "package-qty";
     qtyCol.appendChild(qtyInput);
 
     const priceCol = document.createElement("div");
     priceCol.className = "unit-price";
-    priceCol.innerHTML = `₱&nbsp;${money(price)}`;
+    priceCol.id = "price_" + key;
+    priceCol.innerHTML = `₱&nbsp;${money(qty0Price)}`;
 
     const subCol = document.createElement("div");
     subCol.className = "subtotal-val";
-    subCol.innerHTML = `₱&nbsp;<span id="sub_${k}">0.00</span>`;
+    subCol.innerHTML = `₱&nbsp;<span id="sub_${key}">0.00</span>`;
 
     row.appendChild(labelCol); row.appendChild(qtyCol);
     row.appendChild(priceCol); row.appendChild(subCol);
@@ -453,8 +481,8 @@ function renderPackage() {
 
     qtyInput.addEventListener("input", () => {
       const q = Math.max(0, parseInt(qtyInput.value) || 0);
-      if (k === "bridal_gown") buildGownPickers("bgPickers", q, BG_CATS, "Bridal Gown");
-      if (k === "mother")      buildGownPickers("mgPickers", q, MG_CATS, "Mother's Gown");
+      if (key === "bridal_gown") buildGownPickers("bgPickers", q, BG_CATS, "Bridal Gown");
+      if (key === "mother")      buildGownPickers("mgPickers", q, MG_CATS, "Mother's Gown");
       updateGrandTotal();
     });
   });
@@ -686,23 +714,8 @@ function addAddonRow() {
 }
 
 document.getElementById("addAddonBtn").addEventListener("click", addAddonRow);
-document.getElementById("packageGroup").addEventListener("change", () => {
-  const group = document.getElementById("packageGroup").value;
-  const typeSel = document.getElementById("packageType");
-  typeSel.innerHTML = "";
-  const options = {
-    "A": [["A1","PACKAGE 1A — ₱4,200 (Spandex)"],["A2","PACKAGE 2A — ₱5,200 (Chiffon)"]],
-    "B": [["B1","PACKAGE 1B — ₱4,200 (Spandex)"],["B2","PACKAGE 2B — ₱5,200 (Chiffon)"],["B3","PACKAGE 3B — ₱6,000 (Spandex)"],["B4","PACKAGE 4B — ₱7,200 (Chiffon)"]],
-    "C": [["C1","PACKAGE 1C — ₱5,200 (Spandex)"],["C2","PACKAGE 2C — ₱6,200 (Chiffon)"],["C3","PACKAGE 3C — ₱7,000 (Spandex)"],["C4","PACKAGE 4C — ₱8,200 (Chiffon)"]]
-  };
-  options[group].forEach(([val, label]) => {
-    const o = document.createElement("option");
-    o.value = val; o.textContent = label;
-    typeSel.appendChild(o);
-  });
-  renderPackage();
-});
-document.getElementById("packageType").addEventListener("change", renderPackage);
+document.getElementById("fabricType").addEventListener("change", renderPackage);
+document.getElementById("mensType").addEventListener("change", renderPackage);
 document.getElementById("packageColor").addEventListener("change", updateGrandTotal);
 
 /* ══════════════════════════════════════════════
@@ -1038,8 +1051,9 @@ function renderRetailItems() {
 function updateGrandTotal() {
   if (!dataReady) return;
 
-  const pkg   = document.getElementById("packageType").value;
-  const color = document.getElementById("packageColor").value;
+  const fabric   = getFabric();
+  const mensType = getMensType();
+  const color    = document.getElementById("packageColor").value;
 
   /* ── Package calculation ── */
   let packTotal = 0, addonTotal = 0;
@@ -1047,16 +1061,22 @@ function updateGrandTotal() {
   let pkgHasItems = false;
 
   document.querySelectorAll(".package-qty").forEach(input => {
-    const k   = input.dataset.k;
-    const qty = Math.max(0, parseInt(input.value) || 0);
-    const [name, price] = packagePrices[pkg][k];
-    const sub = qty * price;
+    const k    = input.dataset.k;
+    const qty  = Math.max(0, parseInt(input.value) || 0);
+    const name = getItemLabel(k, mensType);
+    const price = getItemPrice(k, qty, fabric, mensType);
+    const sub  = qty * price;
     packTotal += sub;
+
+    // Update unit price display live
+    const priceEl = document.getElementById("price_" + k);
+    if (priceEl) priceEl.innerHTML = `₱&nbsp;${money(price)}`;
     const subEl = document.getElementById("sub_" + k);
     if (subEl) subEl.textContent = money(sub);
 
     if (qty > 0) {
       pkgHasItems = true;
+      const tier = getTier(k, qty);
       const codes = [];
       if (k === "bridal_gown") {
         document.querySelectorAll("#bgPickers .gown-picker-set").forEach(set => {
@@ -1141,7 +1161,8 @@ function updateGrandTotal() {
   // Package section
   if (pkgHasItems || color) {
     lines.push("WEDDING ENTOURAGE PACKAGE");
-    lines.push(`  Package: ${packageNames[pkg]}`);
+    lines.push(`  Fabric: ${fabric.charAt(0).toUpperCase() + fabric.slice(1)}`);
+    lines.push(`  Men's: ${mensType === "suit" ? "Suit Set" : "Barong"}`);
     if (color) lines.push(`  Color: ${color}`);
     lines.push("");
     lines.push(...pkgLines);
@@ -1253,51 +1274,72 @@ async function restorePackageLegacy(text) {
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-  // Package type
+  // Try to restore fabric/mens from new format
+  const fabricLine = lines.find(l => l.startsWith("Fabric:"));
+  const mensLine   = lines.find(l => l.startsWith("Men's:"));
+  if (fabricLine) {
+    const fab = fabricLine.replace("Fabric:", "").trim().toLowerCase();
+    if (document.getElementById("fabricType")) document.getElementById("fabricType").value = fab;
+  }
+  if (mensLine) {
+    const mens = mensLine.replace("Men's:", "").trim().toLowerCase();
+    if (document.getElementById("mensType")) document.getElementById("mensType").value = mens === "suit set" ? "suit" : "barong";
+  }
+
+  // Legacy: restore from old PACKAGE: line
   const pkgLine = lines.find(l => l.startsWith("PACKAGE:"));
   if (pkgLine) {
     const pkgName = pkgLine.replace("PACKAGE:", "").trim();
-    for (const [val, name] of Object.entries(packageNames)) {
-      if (name === pkgName) {
-        // Set the group dropdown first
-        const group = val.charAt(0); // "A", "B", or "C"
-        const groupSel = document.getElementById("packageGroup");
-        if (groupSel) {
-          groupSel.value = group;
-          groupSel.dispatchEvent(new Event("change")); // rebuilds packageType options
-        }
-        const pkgSel = document.getElementById("packageType");
-        if (pkgSel) pkgSel.value = val;
-        break;
-      }
-    }
-    renderPackage();
+    // Detect fabric and mens type from old package name
+    const isSuit   = pkgName.includes("3") || pkgName.includes("4");
+    const isChiffon = pkgName.toUpperCase().includes("CHIFFON");
+    if (document.getElementById("fabricType")) document.getElementById("fabricType").value = isChiffon ? "chiffon" : "spandex";
+    if (document.getElementById("mensType"))   document.getElementById("mensType").value   = isSuit    ? "suit"    : "barong";
   }
 
+  renderPackage();
+
   // Package color
-  const colorLine = lines.find(l => l.startsWith("PACKAGE COLOR:"));
-  if (colorLine) document.getElementById("packageColor").value = colorLine.replace("PACKAGE COLOR:", "").trim();
+  const colorLine = lines.find(l => l.startsWith("PACKAGE COLOR:") || l.startsWith("Color:"));
+  if (colorLine) {
+    const col = colorLine.includes("PACKAGE COLOR:") 
+      ? colorLine.replace("PACKAGE COLOR:", "").trim()
+      : colorLine.replace("Color:", "").trim();
+    document.getElementById("packageColor").value = col;
+  }
 
-  // Build name to key map
-  const pkg = document.getElementById("packageType").value;
+  // Build name-to-key map from all possible item labels
   const nameToKey = {};
-  for (const [k, [name]] of Object.entries(packagePrices[pkg])) nameToKey[name] = k;
+  const fabric   = getFabric();
+  const mensType = getMensType();
+  ALL_PKG_ITEMS.forEach(({ key }) => {
+    nameToKey[getItemLabel(key, mensType)] = key;
+    // Also map legacy names
+    nameToKey["Groom Barong"] = "groom";
+    nameToKey["Groom Suit"]   = "groom";
+    nameToKey["BPO Child"]    = "child";
+    nameToKey["Child Suit"]   = "child";
+    nameToKey["Men's Barong"] = "men";
+    nameToKey["Men's Set"]    = "men";
+  });
 
-  // Package item lines
+  // Package item lines — support both old format (x N @) and new format (xN   ₱)
   const addonStartIdx = lines.findIndex(l => l === "ADD-ONS:");
   const pkgItemLines = lines.filter((l, i) => {
-    if (l.startsWith("PACKAGE:") || l.startsWith("PACKAGE COLOR:") ||
+    if (l.startsWith("PACKAGE:") || l.startsWith("PACKAGE COLOR:") || l.startsWith("Fabric:") ||
+        l.startsWith("Men's:") || l.startsWith("Color:") ||
         l.startsWith("PACKAGE SUBTOTAL:") || l.startsWith("ADD-ON SUBTOTAL:") ||
         l.startsWith("GRAND TOTAL:") || l === "ADD-ONS:") return false;
     if (addonStartIdx >= 0 && i > addonStartIdx) return false;
-    return l.includes(" x ") && l.includes("@");
+    return (l.includes(" x ") && (l.includes("@") || l.includes("₱")));
   });
 
   for (const line of pkgItemLines) {
-    const qtyMatch = line.match(/ x (\d+) @/);
+    // Match both "Name x N @" and "Name   xN   ₱"
+    const qtyMatch = line.match(/x\s*(\d+)\s+[@₱]/);
     if (!qtyMatch) continue;
     const qty      = parseInt(qtyMatch[1]);
-    const itemName = line.split(/\s*\|\s*|\s+x\s+\d+\s+@/)[0].trim();
+    const itemName = line.split(/\s*\|\s*|\s+x\s*\d+/)[0].trim();
     const k        = nameToKey[itemName];
     if (!k) continue;
 
@@ -1421,14 +1463,28 @@ async function restoreFromSummary(text) {
     if (line.startsWith("--") || line.startsWith("GRAND TOTAL")) continue;
 
     if (section === "package") {
-      // Package type
+      // Fabric
+      const fabricMatch = line.match(/^Fabric:\s*(.+)$/);
+      if (fabricMatch) {
+        const fab = fabricMatch[1].trim().toLowerCase();
+        if (document.getElementById("fabricType")) document.getElementById("fabricType").value = fab;
+        renderPackage(); continue;
+      }
+      // Men's type
+      const mensMatch = line.match(/^Men's:\s*(.+)$/);
+      if (mensMatch) {
+        const mens = mensMatch[1].trim().toLowerCase();
+        if (document.getElementById("mensType")) document.getElementById("mensType").value = mens === "suit set" ? "suit" : "barong";
+        renderPackage(); continue;
+      }
+      // Legacy package type
       const pkgMatch = line.match(/^Package:\s*(.+)$/);
       if (pkgMatch) {
         const pkgName = pkgMatch[1].trim();
-        const pkgSel = document.getElementById("packageType");
-        for (const [val, name] of Object.entries(packageNames)) {
-          if (name === pkgName) { pkgSel.value = val; break; }
-        }
+        const isSuit    = pkgName.includes("3") || pkgName.includes("4");
+        const isChiffon = pkgName.toUpperCase().includes("CHIFFON");
+        if (document.getElementById("fabricType")) document.getElementById("fabricType").value = isChiffon ? "chiffon" : "spandex";
+        if (document.getElementById("mensType"))   document.getElementById("mensType").value   = isSuit    ? "suit"    : "barong";
         renderPackage(); continue;
       }
       // Color
@@ -1436,18 +1492,22 @@ async function restoreFromSummary(text) {
       if (colorMatch) {
         document.getElementById("packageColor").value = colorMatch[1].trim(); continue;
       }
-      // Package item: "Bridesmaid              x1   ₱280.50"
-      const pkgItemMatch = line.match(/^(.+?)\s+x(\d+)\s+₱[\d,]+\.?\d*$/);
+      // Package item: "Bridesmaid              x1   ₱280.50 [Pkg C]" or "Bridesmaid              x1   ₱280.50"
+      const pkgItemMatch = line.match(/^(.+?)\s+x(\d+)\s+₱[\d,]+\.?\d*/);
       if (pkgItemMatch) {
         const name = pkgItemMatch[1].trim();
         const qty  = parseInt(pkgItemMatch[2]);
-        const pkg  = document.getElementById("packageType").value;
-        for (const k of getPkgKeys(pkg)) {
-          if (packagePrices[pkg][k][0] === name) {
-            const inp = document.querySelector(`.package-qty[data-k="${k}"]`);
-            if (inp) { inp.value = qty; inp.dispatchEvent(new Event("input")); }
-            break;
-          }
+        const fabric2   = getFabric();
+        const mensType2 = getMensType();
+        const nToK = {};
+        ALL_PKG_ITEMS.forEach(({ key }) => { nToK[getItemLabel(key, mensType2)] = key; });
+        nToK["Groom Barong"] = "groom"; nToK["Groom Suit"] = "groom";
+        nToK["BPO Child"] = "child"; nToK["Child Suit"] = "child";
+        nToK["Men's Barong"] = "men"; nToK["Men's Set"] = "men";
+        const k = nToK[name];
+        if (k) {
+          const inp = document.querySelector(`.package-qty[data-k="${k}"]`);
+          if (inp) { inp.value = qty; inp.dispatchEvent(new Event("input")); }
         }
         continue;
       }
