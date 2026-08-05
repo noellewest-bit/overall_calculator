@@ -20,7 +20,8 @@ const PKG_ADDON_CATS = [
   "BGS","BGI-ADD ON","PGS","PGI-ADD ON","MOH","BMG","FGG","PGC","FIL",
   "MG","CD","MS","CS","PET-#","PET","BCPO","BOY","BPSC",
   "BPO","BPOL","BPS","COAT BARONG","BCC","BPOC","VST",
-  "S-UPPER","POLO","ACC","PEN","PANTS"
+  "S-UPPER","POLO","ACC","PEN","PANTS",
+  "BPJ","BOC","BTT","BJ","BJL","BPJJ"
 ];
 
 const BG_CATS  = ["BGI","BGS","PGI","PGS","CD"];
@@ -31,21 +32,32 @@ const RENTAL_TRACKED_CATS = [
 ];
 const RENTAL_QTY_CATS = [
   "BCPO","BOY","BPSC","BPO","BPOL","BPS","COAT BARONG","BCC","BPOC",
-  "VST","POLO","ACC","PEN","PANTS","MOH","BMG","FGG","PET"
+  "VST","POLO","ACC","PEN","PANTS","MOH","BMG","FGG","PET",
+  "BPJ","BOC","BTT","BJ","BJL","BPJJ"
 ];
 
 const RETAIL_SHEETS = [
-  { label: "BGI",     gid: "189628887"  },
-  { label: "BGS",     gid: "1149316761" },
-  { label: "PGI",     gid: "1078506480" },
-  { label: "PGS",     gid: "1175324516" },
-  { label: "PGC",     gid: "1142319531" },
-  { label: "FIL",     gid: "1338479475" },
-  { label: "MG",      gid: "479297482"  },
-  { label: "CD",      gid: "159828861"  },
-  { label: "MS",      gid: "810437052"  },
-  { label: "CS",      gid: "1877793641" },
+  { label: "BGI",   gid: "189628887"  },
+  { label: "BGS",   gid: "1149316761" },
+  { label: "PGI",   gid: "1078506480" },
+  { label: "PGS",   gid: "1175324516" },
+  { label: "PGC",   gid: "1142319531" },
+  { label: "FIL",   gid: "1338479475" },
+  { label: "MG",    gid: "479297482"  },
+  { label: "CD",    gid: "159828861"  },
+  { label: "MS",    gid: "810437052"  },
+  { label: "CS",    gid: "1877793641" },
   { label: "S-UPPER", gid: "1177779497" },
+  { label: "BCC",   gid: "64985355"   },
+  { label: "BPO",   gid: "1711691718" },
+  { label: "BOY",   gid: "1827568389" },
+  { label: "BPOL",  gid: "1313577739" },
+  { label: "BPJ",   gid: "790471384"  },
+  { label: "BOC",   gid: "255629516"  },
+  { label: "BTT",   gid: "1474665022" },
+  { label: "BJ",    gid: "1200704385" },
+  { label: "BJL",   gid: "985720165"  },
+  { label: "BPJJ",  gid: "1050461095" },
 ];
 
 /* ── Package pricing tiers ── */
@@ -299,17 +311,42 @@ async function loadAllData() {
     try {
       const rows = await fetchSheetByGid(gid);
       if (rows.length < 2) { await new Promise(r => setTimeout(r, DELAY_MS)); continue; }
-      const headers = rows[0].map(h => h.trim().toLowerCase());
-      const priceCol = headers.findIndex(h => h.includes("retail"));
-      if (priceCol === -1) { await new Promise(r => setTimeout(r, DELAY_MS)); continue; }
+      const headers = rows[0].map(h => h.trim().toUpperCase());
+      const retailCol = headers.findIndex(h => h.includes("RETAIL"));
+      const rentalCol = headers.findIndex(h => h.includes("RENTAL RATE") || h.includes("RENTAL"));
+      const fuCol     = headers.findIndex(h => h.includes("FIRST USER"));
+
+      const sheetItems = [];
       for (let r = 1; r < rows.length; r++) {
         const row  = rows[r];
         const name = (row[0] || "").trim();
         if (!name || name.toLowerCase() === "nan") continue;
-        const price = cleanPrice(row[priceCol]);
-        if (price == null) continue;
-        retailItems.push({ category: label, name, retailPrice: price });
+
+        // Retail items
+        if (retailCol >= 0) {
+          const price = cleanPrice(row[retailCol]);
+          if (price != null) retailItems.push({ category: label, name, retailPrice: price });
+        }
+
+        // Also store for rental use
+        const rentalRate     = rentalCol >= 0 ? cleanPrice(row[rentalCol]) : null;
+        const firstUserPrice = fuCol     >= 0 ? cleanPrice(row[fuCol])     : null;
+        sheetItems.push({ code: name, rentalRate, firstUserPrice });
+
+        // Add to rental master if it's a qty rental category
+        if (RENTAL_QTY_CATS.includes(label)) {
+          const existing = rentalMaster.find(i => i.category === label && i.name === name);
+          if (!existing) {
+            rentalMaster.push({
+              category: label, name,
+              rentalRate: rentalRate ?? 0,
+              firstUserPrice,
+              type: "QUANTITY"
+            });
+          }
+        }
       }
+      sheetData[label] = sheetItems;
     } catch(e) { console.warn("Retail sheet failed:", label, e.message); }
     await new Promise(r => setTimeout(r, DELAY_MS));
   }
