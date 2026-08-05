@@ -972,6 +972,11 @@ function renderRentalItems() {
 /* ══════════════════════════════════════════════
    RETAIL CALCULATOR
 ══════════════════════════════════════════════ */
+// Categories that support quantity selection in retail
+const RETAIL_QTY_CATS = new Set([
+  "BPJ","BOC","BTT","BJ","BJL","BPJJ","BCC","BPO","BOY","BPOL"
+]);
+
 function buildRetailPanel() {
   const catSel = document.getElementById("ret-category");
   const loadedCats = new Set(retailItems.map(i => i.category));
@@ -988,7 +993,23 @@ function buildRetailPanel() {
   const addBtn   = document.getElementById("ret-add-btn");
   const errorEl  = document.getElementById("ret-error");
 
+  // Add qty input dynamically after the price preview
+  const qtyWrap = document.createElement("div");
+  qtyWrap.className = "field-group";
+  qtyWrap.style.display = "none";
+  qtyWrap.innerHTML = '<div class="field-label">Quantity</div>';
+  const qtyInput = document.createElement("input");
+  qtyInput.type = "number"; qtyInput.min = "1"; qtyInput.value = "1";
+  qtyWrap.appendChild(qtyInput);
+  addBtn.parentNode.insertBefore(qtyWrap, addBtn);
+
+  function isQtyCat(cat) { return RETAIL_QTY_CATS.has(cat); }
+
   function getAvailableRetail(cat) {
+    if (isQtyCat(cat)) {
+      // Qty cats allow duplicates — don't filter by cart
+      return retailItems.filter(i => i.category === cat);
+    }
     const inCart = new Set(retailCart.map(c => c.name + "|" + c.category));
     return retailItems.filter(i => i.category === cat && !inCart.has(i.name + "|" + i.category));
   }
@@ -1005,6 +1026,9 @@ function buildRetailPanel() {
     searchEl.disabled = !catSel.value;
     priceEl.textContent = "Select an item"; priceEl.classList.add("empty");
     addBtn.disabled = true; dropEl.classList.remove("open");
+    // Show qty field for qty categories
+    qtyWrap.style.display = isQtyCat(catSel.value) ? "" : "none";
+    qtyInput.value = "1";
   });
 
   searchEl.addEventListener("input", () => {
@@ -1040,14 +1064,31 @@ function buildRetailPanel() {
 
   addBtn.addEventListener("click", () => {
     if (!selectedRetailItem) return;
-    if (retailCart.find(c => c.name === selectedRetailItem.name && c.category === selectedRetailItem.category)) {
+    const cat = catSel.value;
+    const qty = isQtyCat(cat) ? (parseInt(qtyInput.value) || 1) : 1;
+
+    if (!isQtyCat(cat) && retailCart.find(c => c.name === selectedRetailItem.name && c.category === cat)) {
       errorEl.textContent = `"${selectedRetailItem.name}" is already in your list.`;
       errorEl.classList.add("visible"); return;
     }
-    retailCart.push({ ...selectedRetailItem });
+
+    // For qty cats, merge with existing cart entry if same item
+    if (isQtyCat(cat)) {
+      const existing = retailCart.find(c => c.name === selectedRetailItem.name && c.category === cat);
+      if (existing) {
+        existing.quantity = (existing.quantity || 1) + qty;
+        existing.totalPrice = existing.retailPrice * existing.quantity;
+      } else {
+        retailCart.push({ ...selectedRetailItem, quantity: qty, totalPrice: selectedRetailItem.retailPrice * qty });
+      }
+    } else {
+      retailCart.push({ ...selectedRetailItem, quantity: 1, totalPrice: selectedRetailItem.retailPrice });
+    }
+
     selectedRetailItem = null; searchEl.value = ""; searchEl.disabled = true;
     catSel.value = ""; priceEl.textContent = "Select an item"; priceEl.classList.add("empty");
     addBtn.disabled = true; errorEl.classList.remove("visible");
+    qtyWrap.style.display = "none"; qtyInput.value = "1";
     renderRetailItems();
   });
 }
@@ -1065,15 +1106,19 @@ function renderRetailItems() {
   emptyEl.style.display = "none";
   badge.textContent = retailCart.length;
 
-  list.innerHTML = retailCart.map(item => `
-    <div class="rental-item">
+  list.innerHTML = retailCart.map(item => {
+    const qty = item.quantity || 1;
+    const total = item.retailPrice * qty;
+    const qtyLabel = qty > 1 ? ` ×${qty}` : "";
+    return `<div class="rental-item">
       <div class="item-info">
-        <div class="item-name">${esc(item.name)}</div>
+        <div class="item-name">${esc(item.name)}${qtyLabel}</div>
         <div class="item-meta">${esc(item.category)}</div>
       </div>
-      <div class="item-amount">₱${money(item.retailPrice)}</div>
+      <div class="item-amount">₱${money(total)}</div>
       <button class="btn-remove" data-name="${esc(item.name)}" data-cat="${esc(item.category)}">×</button>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 
   list.querySelectorAll(".btn-remove").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1170,7 +1215,7 @@ function updateGrandTotal() {
 
   /* ── Retail calculation ── */
   let retailTotal = 0;
-  retailCart.forEach(item => { retailTotal += item.retailPrice || 0; });
+  retailCart.forEach(item => { retailTotal += item.retailPrice * (item.quantity || 1); });
   document.getElementById("retailTotal").textContent = money(retailTotal);
 
   /* ── Grand total ── */
@@ -1248,7 +1293,10 @@ function updateGrandTotal() {
     lines.push("PURCHASED ITEMS");
     lines.push("");
     retailCart.forEach(item => {
-      lines.push(`  ${item.name.padEnd(22)}₱${money(item.retailPrice)}`);
+      const qty = item.quantity || 1;
+      const total = item.retailPrice * qty;
+      const qtyLabel = qty > 1 ? ` x${qty}` : "";
+      lines.push(`  ${item.name.padEnd(22)}${qtyLabel.padEnd(4)} ₱${money(total)}`);
     });
     lines.push("");
     lines.push(`  PURCHASE TOTAL:        ₱${money(retailTotal)}`);
